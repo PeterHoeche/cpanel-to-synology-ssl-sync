@@ -1,0 +1,4 @@
+argparse
+requests
+setuptools
+synology_api

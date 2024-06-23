@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""UPDATE SSL CERTIFICATES ON SYNOLOGY NAS
+
+A command-line tool for updating SSL certificate bundles (certificate, private key and cabundle) on a Synology NAS.
+
+"""
+
+import argparse
+
+from synology_api import core_certificate
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-i', '--synology-ip', required=True, help='IP address of the Synology NAS.')
+    parser.add_argument('-p', '--synology-port', required=True, help='Port number of the Synology NAS.')
+    parser.add_argument('-u', '--synology-user', required=True, help='Password for the Synology NAS user.')
+    parser.add_argument('-w', '--synology-password', required=True,
+                        help='The password of the user of the synology nas.')
+    parser.add_argument('-s', '--synology-secure', required=False,
+                        help='Use a secure (HTTPS) connection to the NAS. Default is True.', default=True)
+    parser.add_argument('-v', '--synology-verify-cert', required=False,
+                        help='Verify the SSL certificate when connecting to the Synology NAS. Default is False.',
+                        default=False)
+    parser.add_argument('-d', '--domain', nargs='*', action="extend", help='Domain(s) to be updated.')
+    parser.add_argument('-c', '--certificates-path', required=True,
+                        help='Path to the folder containing the SSL certificates.')
+
+    args = parser.parse_args()
+
+    api = _api(args.synology_ip, args.synology_port, args.synology_user, args.synology_password, args.synology_secure,
+               args.synology_verify_cert)
+
+    _update(api, args.path, args.domain)
+
+
+def _api(ip_address, port, username, password, secure, cert_verify):
+    return core_certificate.Certificate(ip_address, port, username, password, secure, cert_verify)
+
+
+def _update(api, path, domains):
+    ids = _domain_ids(api)
+
+    for domain in domains:
+        api.upload_cert(serv_key=f'{path}/{domain}/private.key',
+                        ser_cert=f'{path}/{domain}/certificate.crt',
+                        ca_cert=f'{path}/{domain}/cabundle.crt',
+                        set_as_default=False,
+                        cert_id=ids[domain],
+                        desc=domain
+                        )
+
+
+def _domain_ids(api):
+    certs = api.list_cert()
+    lookup = {}
+
+    for item in certs['data']['certificates']:
+        id_value = item['id']
+        common_name = item['subject']['common_name']
+        sub_alt_names = item['subject']['sub_alt_name']
+        lookup[common_name] = id_value
+
+        for alt_name in sub_alt_names:
+            lookup[alt_name] = id_value
+
+    return lookup
+
+
+if __name__ == "__main__":
+    main()

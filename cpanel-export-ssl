@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""EXPORT SSL CERTIFICATE BUNDLE FROM CPANEL
+
+A command-line tool for exporting SSL certificate bundles (certificate, private key and cabundle) from a cPanel server.
+
+"""
+
+import argparse
+import json
+import os
+import requests
+from datetime import datetime
+
+AUTH = None
+ENDPOINT = None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-d', '--domain', nargs='*', action="extend", help='Domain(s) to be exported from cPanel.')
+    parser.add_argument('-t', '--auth-token', required=True, help='Authentication token for the cPanel server.')
+    parser.add_argument('-e', '--endpoint', required=True,
+                        help='The endpoint of the cPanel server (e.g., "https://your-server.com:2083").')
+    parser.add_argument('-o', '--output', required=False, help='Path to the export folder. Default is "./export".',
+                        default='./export')
+
+    args = parser.parse_args()
+
+    global ENDPOINT
+    global AUTH
+    ENDPOINT = f"{args.endpoint}/execute/SSL"
+    AUTH = args.auth
+
+    _export(args.domain, args.output)
+
+
+def _export(domains, output_path):
+    certs = _api_request(f"{ENDPOINT}/list_certs")
+
+    for domain in domains:
+        friendly_name = _valid_certificate(certs, domain)
+
+        cert_info = _api_request(f"{ENDPOINT}/fetch_cert_info", {'friendly_name': friendly_name})
+        certificate = cert_info['certificate']
+        key = cert_info['key']
+        cabundle = cert_info['cabundle']
+
+        _write_file(output_path, f'{domain}/certificate.crt', certificate)
+        _write_file(output_path, f'{domain}/private.key', key)
+        _write_file(output_path, f'{domain}/cabundle.crt', cabundle)
+
+
+def _valid_certificate(certs, domain):
+    utc_now = int(datetime.now().timestamp())
+    certificates = []
+    for item in certs:
+        not_before = item['not_before']
+        not_after = item['not_after']
+        domains = item['domains']
+
+        if set(domains).isdisjoint({domain}):
+            continue
+
+        if not_before <= utc_now < not_after:
+            certificates.append(
+                {
+                    'name': item['friendly_name'],
+                    'valid_until': not_after
+                }
+            )
+
+    certificates.sort(reverse=True, key=lambda x: x['valid_until'])
+    return certificates[0]['name']
+
+
+def _api_request(url, payload=None):
+    response = requests.get(url, headers={'Authorization': AUTH}, params=payload)
+    return json.loads(response.text)['data']
+
+
+def _write_file(output_path, file_name, content):
+    path = os.path.join(output_path, file_name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    f = open(path, 'w')
+    f.write(content)
+    f.close()
+
+
+if __name__ == "__main__":
+    main()
