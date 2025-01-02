@@ -30,7 +30,7 @@ def main():
     global ENDPOINT
     global AUTH
     ENDPOINT = f"{args.endpoint}/execute/SSL"
-    AUTH = args.auth
+    AUTH = args.auth_token
 
     _export(args.domain, args.output)
 

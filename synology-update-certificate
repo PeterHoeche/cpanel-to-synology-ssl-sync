@@ -32,7 +32,7 @@ def main():
     api = _api(args.synology_ip, args.synology_port, args.synology_user, args.synology_password, args.synology_secure,
                args.synology_verify_cert)
 
-    _update(api, args.path, args.domain)
+    _update(api, args.certificates_path, args.domain)
 
 
 def _api(ip_address, port, username, password, secure, cert_verify):
