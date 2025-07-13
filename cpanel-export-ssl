@@ -55,8 +55,8 @@ def _valid_certificate(certs, domain):
     utc_now = int(datetime.now().timestamp())
     certificates = []
     for item in certs:
-        not_before = item['not_before']
-        not_after = item['not_after']
+        not_before = int(item['not_before'])
+        not_after = int(item['not_after'])
         domains = item['domains']
 
         if set(domains).isdisjoint({domain}):
